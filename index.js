@@ -23,8 +23,13 @@ connectDB();
 // Define allowed origins
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://khanbari-somety.web.app',
-  process.env.CLIENT_URL // This covers whatever you set in your .env
+  'https://khanbari-somity.web.app',
+  'https://khanbari-somety.web.app', // Also allow the 'e' spelling if different
+  process.env.CLIENT_URL, // This covers whatever you set in your .env
+  // Vercel deployment domains - add all possible domains
+  'https://royal-somety-server-v4-git-main-jabir-bhuiyans-projects.vercel.app',
+  'https://royal-somety-server-v4*.vercel.app',
+  'https://khanbari-somity*.firebaseapp.com',
 ];
 
 app.use(cors({
@@ -35,6 +40,9 @@ app.use(cors({
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      // Log rejected origins for debugging
+      console.log(`❌ CORS rejected origin: ${origin}`);
+      console.log(`   Allowed origins: ${allowedOrigins.join(', ')}`);
       callback(new Error('Not allowed by CORS'));
     }
   },

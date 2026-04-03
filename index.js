@@ -23,7 +23,7 @@ connectDB();
 // Define allowed origins
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://khanbari-somety-client.vercel.app',
+  'https://khanbari-somety.web.app',
   process.env.CLIENT_URL // This covers whatever you set in your .env
 ];
 

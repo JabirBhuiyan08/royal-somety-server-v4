@@ -6,6 +6,13 @@ import Gallery from '../models/Gallery.js';
 import { cloudinary } from '../middleware/upload.js';
 import { dispatchGalleryUpload } from '../services/notificationDispatcher.js';
 
+export const getTotalBalance = async (req, res) => {
+  try {
+    const agg = await User.aggregate([{ $group: { _id: null, total: { $sum: '$balance' } } }]);
+    res.json({ totalBalance: agg[0]?.total || 0 });
+  } catch (err) { res.status(500).json({ message: 'ব্যালেন্স আনতে ব্যর্থ' }); }
+};
+
 export const getMyTransactions = async (req, res) => {
   try {
     const transactions = await Transaction.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(50);
@@ -15,9 +22,17 @@ export const getMyTransactions = async (req, res) => {
 
 export const requestDeposit = async (req, res) => {
   try {
-    const { amount, note } = req.body;
+    const { amount, note, paymentMonth, target } = req.body;
     if (!amount || amount < 1) return res.status(400).json({ message: 'পরিমাণ সঠিক নয়' });
-    const tx = await Transaction.create({ user: req.user._id, amount: Number(amount), type: 'deposit', status: 'pending', note });
+    const tx = await Transaction.create({ 
+      user: req.user._id, 
+      amount: Number(amount), 
+      type: 'deposit', 
+      status: 'pending', 
+      note, 
+      paymentMonth,
+      target: target || null 
+    });
     res.status(201).json({ message: 'জমার অনুরোধ পাঠানো হয়েছে', transaction: tx });
   } catch (err) { res.status(500).json({ message: 'অনুরোধ ব্যর্থ হয়েছে' }); }
 };
@@ -25,7 +40,20 @@ export const requestDeposit = async (req, res) => {
 export const getTargets = async (req, res) => {
   try {
     const targets = await Target.find({ isActive: true }).sort({ createdAt: -1 });
-    res.json({ targets });
+    
+// Calculate collected amount for each target from approved transactions
+    const targetsWithCollected = await Promise.all(targets.map(async (t) => {
+      const agg = await Transaction.aggregate([
+        { $match: { target: t._id, status: 'approved', type: 'deposit' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]);
+      return {
+        ...t.toObject(),
+        collected: agg[0]?.total || 0
+      };
+    }));
+    
+    res.json({ targets: targetsWithCollected });
   } catch (err) { res.status(500).json({ message: 'লক্ষ্য আনতে ব্যর্থ' }); }
 };
 

@@ -25,9 +25,22 @@ export const getStats = async (req, res) => {
         { $match: { status: 'approved', type: 'deposit', createdAt: { $gte: startOfMonth } } },
         { $group: { _id: null, total: { $sum: '$amount' } } },
       ]),
-      Target.find({ isActive: true }).select('title goal collected category').lean(),
+      Target.find({ isActive: true }).select('title goal category').lean(),
     ]);
-    res.json({ totalMembers, newThisMonth, totalBalance: balanceAgg[0]?.total || 0, monthlyCollection: monthlyAgg[0]?.total || 0, targets });
+    
+    // Calculate collected amount for each target from approved transactions
+    const targetsWithCollected = await Promise.all(targets.map(async (t) => {
+      const agg = await Transaction.aggregate([
+        { $match: { target: t._id, status: 'approved', type: 'deposit' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]);
+      return {
+        ...t,
+        collected: agg[0]?.total || 0
+      };
+    }));
+    
+    res.json({ totalMembers, newThisMonth, totalBalance: balanceAgg[0]?.total || 0, monthlyCollection: monthlyAgg[0]?.total || 0, targets: targetsWithCollected });
   } catch (err) { res.status(500).json({ message: 'পরিসংখ্যান আনতে ব্যর্থ' }); }
 };
 
@@ -171,7 +184,7 @@ export const adminUploadForMember = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { memberId, amount, paymentMonth, note } = req.body;
+    const { memberId, amount, paymentMonth, note, target } = req.body;
     const member = await User.findById(memberId).session(session);
     if (!member) return res.status(404).json({ message: 'সদস্য পাওয়া যায়নি' });
 
@@ -182,6 +195,7 @@ export const adminUploadForMember = async (req, res) => {
       status: 'approved',
       paymentMonth: paymentMonth || null,
       note: note || `অ্যাডমিন কর্তৃক আপলোড`,
+      target: target || null,
       uploadedByAdmin: true,
       approvedBy: req.user._id,
       approvedAt: new Date(),

@@ -4,6 +4,7 @@ import {
   getMyTransactions, requestDeposit, getTargets,
   getEmergencyList, getGallery, uploadGalleryPhoto,
   deleteOwnPhoto, updateProfile, getMonthlyStatus,
+  getTotalBalance,
 } from '../controllers/userController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
 import { getMyNotifications, markRead } from '../controllers/notificationController.js';
@@ -12,6 +13,7 @@ import { uploadGallery, uploadMultipleProfile } from '../middleware/upload.js';
 const router = express.Router();
 router.use(verifyToken);
 
+router.get('/total-balance', getTotalBalance);
 router.get('/transactions', getMyTransactions);
 router.post('/transactions/deposit', requestDeposit);
 router.get('/monthly-status', getMonthlyStatus);

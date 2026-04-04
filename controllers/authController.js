@@ -9,16 +9,16 @@ export const registerUser = async (req, res) => {
     const existing = await User.findOne({ uid });
     if (existing) return res.status(200).json({ message: 'সদস্য ইতিমধ্যে আছেন', user: existing });
 
-    // Check if this email is the designated admin from .env
-    const isEnvAdmin = process.env.ADMIN_EMAIL &&
-      email?.toLowerCase() === process.env.ADMIN_EMAIL?.toLowerCase();
+    // Check if this phone is the designated admin from .env
+    const isEnvAdmin = process.env.ADMIN_PHONE &&
+      phone?.replace(/\D/g, '') === process.env.ADMIN_PHONE?.replace(/\D/g, '');
 
-    // First user OR env admin email → admin role
+    // First user OR env admin phone → admin role
     const count = await User.countDocuments();
     const role = (count === 0 || isEnvAdmin) ? 'admin' : 'member';
 
     const user = await User.create({
-      uid, name, email, phone, bloodGroup,
+      uid, name, email: phone + '@khanbari.somity', phone, bloodGroup,
       avatar: photoURL || null,
       role,
     });
@@ -26,8 +26,8 @@ export const registerUser = async (req, res) => {
     res.status(201).json({ message: 'নিবন্ধন সফল', user });
   } catch (err) {
     if (err.code === 11000) {
-      // Email already exists — just return the existing user
-      const user = await User.findOne({ email: req.body.email });
+      // Phone already exists — just return the existing user
+      const user = await User.findOne({ phone: req.body.phone });
       return res.status(200).json({ user });
     }
     console.error('Register error:', err);

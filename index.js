@@ -3,6 +3,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import { createServer } from 'http';
 import { connectDB } from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import memberRoutes from './routes/memberRoutes.js';
@@ -15,10 +16,16 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Connect DB
-connectDB();
+connectDB().catch(err => {
+  console.error('❌ Database connection failed:', err.message);
+});
+
+// ── Startup diagnostics ──────────────────────────────────────────────────────
+console.log('🚀 Server initializing...');
+console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+console.log(`   VERCEL: ${process.env.VERCEL || 'not set'}`);
 
 // ── Security & Parsing ───────────────────────────────────────────────
-// server/index.js
 
 // Define allowed origins - accept all variations
 const allowedOrigins = [
@@ -29,10 +36,13 @@ const allowedOrigins = [
   'https://khanbari-somity.firebaseapp.com',
   'https://khanbari-somety.firebaseapp.com',
   process.env.CLIENT_URL,
-  // All possible Vercel deployment domains
+  // All possible Vercel deployment domains (exact and wildcard)
+  'https://royal-somety-server-v4.vercel.app',
   'https://royal-somety-server-v4-git-main-jabir-bhuiyans-projects.vercel.app',
   'https://royal-somety-server-v4-r0fefentx-jabir-bhuiyans-projects.vercel.app',
-  'https://royal-somety-server-v4*.vercel.app',
+  'https://royal-somety-server-v4-git-*.vercel.app',
+  'https://khanbari-somity.web.app',
+  'https://khanbari-somity.firebaseapp.com',
   'https://khanbari-somity*.firebaseapp.com',
 ];
 
@@ -46,7 +56,7 @@ app.use(cors({
       if (allowed.endsWith('*')) {
         return origin.startsWith(allowed.slice(0, -1));
       }
-      return origin === allowed || allowedOrigins.indexOf(origin) !== -1;
+      return origin === allowed;
     });
     
     if (isAllowed) {
@@ -61,12 +71,11 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Trust proxy (needed for rate-limiting behind Render/Railway)
+app.set('trust proxy', 1);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Trust proxy (needed for rate-limiting behind Render/Railway)
-app.set('trust proxy', 1);
 
 // ── Rate limiting ────────────────────────────────────────────────────
 const limiter = rateLimit({
@@ -86,6 +95,12 @@ const authLimiter = rateLimit({
 app.use('/api', limiter);
 app.use('/api/auth', authLimiter);
 
+// ── Request logging (diagnostics) ────────────────────────────────────
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // ── Routes ───────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/member', memberRoutes);
@@ -95,7 +110,7 @@ app.use('/api/admin', adminRoutes);
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
-    message: 'খানবাড়ি ভাই ভাই সার্ভার চলছে ✅',
+    message: 'খানবাড়ি সার্ভার চলছে ✅',
     timestamp: new Date().toISOString(),
     uptime: Math.floor(process.uptime()) + 's',
   });
@@ -103,6 +118,7 @@ app.get('/api/health', (req, res) => {
 
 // ── 404 ──────────────────────────────────────────────────────────────
 app.use('*', (req, res) => {
+  console.log(`❌ 404: ${req.method} ${req.originalUrl}`);
   res.status(404).json({ message: `রুট পাওয়া যায়নি: ${req.originalUrl}` });
 });
 
@@ -132,8 +148,41 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🏠 খানবাড়ি ভাই ভাই সার্ভার চলছে`);
-  console.log(`   → http://localhost:${PORT}`);
-  console.log(`   → Health: http://localhost:${PORT}/api/health\n`);
-});
+// ── Start server (local only) ─────────────────────────────────────────
+const isVercel = process.env.VERCEL === '1';
+
+if (!isVercel) {
+  app.listen(PORT, () => {
+    console.log(`\n🏠 খানবাড়ি সার্ভার চলছে`);
+    console.log(`   → http://localhost:${PORT}`);
+    console.log(`   → Health: http://localhost:${PORT}/api/health\n`);
+  });
+}
+
+// ── Vercel serverless handler ────────────────────────────────────────────
+export default async function handler(req, res) {
+  try {
+    console.log(`📥 ${req.method} ${req.url}`);
+    
+    // Handle CORS preflight
+    if (req.method === 'OPTIONS') {
+      const origin = req.headers.origin;
+      if (origin && allowedOrigins.some(o => 
+        o === origin || (o.endsWith('*') && origin.startsWith(o.slice(0, -1)))
+      )) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+      }
+      res.status(204).end();
+      return;
+    }
+    
+    // Forward to Express
+    app(req, res);
+  } catch (err) {
+    console.error('❌ Handler error:', err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}

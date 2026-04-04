@@ -20,14 +20,18 @@ connectDB();
 // ── Security & Parsing ───────────────────────────────────────────────
 // server/index.js
 
-// Define allowed origins
+// Define allowed origins - accept all variations
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:3000',
   'https://khanbari-somity.web.app',
-  'https://khanbari-somety.web.app', // Also allow the 'e' spelling if different
-  process.env.CLIENT_URL, // This covers whatever you set in your .env
-  // Vercel deployment domains - add all possible domains
+  'https://khanbari-somety.web.app',
+  'https://khanbari-somity.firebaseapp.com',
+  'https://khanbari-somety.firebaseapp.com',
+  process.env.CLIENT_URL,
+  // All possible Vercel deployment domains
   'https://royal-somety-server-v4-git-main-jabir-bhuiyans-projects.vercel.app',
+  'https://royal-somety-server-v4-r0fefentx-jabir-bhuiyans-projects.vercel.app',
   'https://royal-somety-server-v4*.vercel.app',
   'https://khanbari-somity*.firebaseapp.com',
 ];
@@ -37,12 +41,18 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Check exact match or wildcard match
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed.endsWith('*')) {
+        return origin.startsWith(allowed.slice(0, -1));
+      }
+      return origin === allowed || allowedOrigins.indexOf(origin) !== -1;
+    });
+    
+    if (isAllowed) {
       callback(null, true);
     } else {
-      // Log rejected origins for debugging
       console.log(`❌ CORS rejected origin: ${origin}`);
-      console.log(`   Allowed origins: ${allowedOrigins.join(', ')}`);
       callback(new Error('Not allowed by CORS'));
     }
   },

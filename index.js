@@ -29,37 +29,41 @@ console.log(`   VERCEL: ${process.env.VERCEL || 'not set'}`);
 
 // Define allowed origins - accept all variations
 const allowedOrigins = [
+  // All localhost variations
   'http://localhost:5173',
   'http://localhost:3000',
+  'http://localhost',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  // Firebase hosting
   'https://khanbari-somity.web.app',
   'https://khanbari-somety.web.app',
   'https://khanbari-somity.firebaseapp.com',
   'https://khanbari-somety.firebaseapp.com',
-  process.env.CLIENT_URL,
-  // All possible Vercel deployment domains (exact and wildcard)
-  'https://royal-somety-server-v4.vercel.app',
-  'https://royal-somety-server-v4-git-main-jabir-bhuiyans-projects.vercel.app',
-  'https://royal-somety-server-v4-r0fefentx-jabir-bhuiyans-projects.vercel.app',
-  'https://royal-somety-server-v4-git-*.vercel.app',
+  process.env.CLIENT_URL || 'https://khanbari-somety.web.app',
+  // Any vercel.app domain (catch-all)
   'https://khanbari-somity.web.app',
-  'https://khanbari-somity.firebaseapp.com',
-  'https://khanbari-somity*.firebaseapp.com',
 ];
+
+// CORS check function
+const isOriginAllowed = (origin) => {
+  if (!origin) return false;
+  return allowedOrigins.some(allowed => {
+    // Handle wildcard ending
+    if (allowed.endsWith('*')) {
+      return origin.startsWith(allowed.slice(0, -1));
+    }
+    return origin === allowed;
+  });
+};
 
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
     
-    // Check exact match or wildcard match
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (allowed.endsWith('*')) {
-        return origin.startsWith(allowed.slice(0, -1));
-      }
-      return origin === allowed;
-    });
-    
-    if (isAllowed) {
+    // Check match
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       console.log(`❌ CORS rejected origin: ${origin}`);
@@ -161,28 +165,36 @@ if (!isVercel) {
 
 // ── Vercel serverless handler ────────────────────────────────────────────
 export default async function handler(req, res) {
-  try {
-    console.log(`📥 ${req.method} ${req.url}`);
-    
-    // Handle CORS preflight
-    if (req.method === 'OPTIONS') {
-      const origin = req.headers.origin;
-      if (origin && allowedOrigins.some(o => 
-        o === origin || (o.endsWith('*') && origin.startsWith(o.slice(0, -1)))
-      )) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-      }
-      res.status(204).end();
-      return;
-    }
-    
-    // Forward to Express
-    app(req, res);
-  } catch (err) {
-    console.error('❌ Handler error:', err);
-    res.status(500).json({ message: 'Internal server error' });
+  console.log(`📥 ${req.method} ${req.url} | Origin: ${req.headers.origin}`);
+  
+  // Handle CORS preflight - do this FIRST before anything else
+  if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.status(204).end();
+    return;
   }
+  
+  // Add CORS headers to response for non-OPTIONS requests
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  
+  // Let Express handle the request
+  return new Promise((resolve) => {
+    app(req, res, (err) => {
+      if (err) {
+        console.error('❌ Express error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ message: 'Server error' });
+        }
+      }
+      resolve();
+    });
+  });
 }

@@ -44,30 +44,42 @@ export const getMe = async (req, res) => {
   }
 };
 
-// Google login sync — upsert user in MongoDB
+// Phone-based login sync — upsert user in MongoDB
 export const syncUser = async (req, res) => {
   try {
-    const { uid, name, email, photoURL } = req.body;
+    const { uid, name, phone, photoURL } = req.body;
 
-    const isEnvAdmin = process.env.ADMIN_EMAIL &&
-      email?.toLowerCase() === process.env.ADMIN_EMAIL?.toLowerCase();
+    // Check if this phone is the designated admin from .env
+    const isEnvAdmin = process.env.ADMIN_PHONE &&
+      phone?.replace(/\D/g, '') === process.env.ADMIN_PHONE?.replace(/\D/g, '');
 
     let user = await User.findOne({ uid });
+    
     if (!user) {
+      // New user - create one
       const count = await User.countDocuments();
       user = await User.create({
-        uid, name: name || 'সদস্য', email,
+        uid, 
+        name: name || 'সদস্য', 
+        phone,
+        email: phone ? phone + '@khanbari.somity' : null,
         avatar: photoURL || null,
         role: (count === 0 || isEnvAdmin) ? 'admin' : 'member',
       });
     } else {
-      // Promote to admin if env email matches and not already admin
+      // Existing user - update if needed
+      // Promote to admin if env phone matches and not already admin
       if (isEnvAdmin && user.role !== 'admin') {
         user.role = 'admin';
         await user.save();
       }
       if (photoURL && !user.avatar) {
         user.avatar = photoURL;
+        await user.save();
+      }
+      // Update name if provided
+      if (name && name !== user.name) {
+        user.name = name;
         await user.save();
       }
     }

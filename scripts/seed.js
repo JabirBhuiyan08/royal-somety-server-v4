@@ -9,12 +9,22 @@ import Gallery from '../models/Gallery.js';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/khanbari-somity';
 
+// Get admin phone from environment variable or use default
+const ADMIN_PHONE = process.env.ADMIN_PHONE || '01712345678';
+
+// Helper to check if a phone number is the admin
+const isAdminPhone = (phone) => {
+  const cleanPhone = phone?.replace(/\D/g, '');
+  const cleanAdmin = ADMIN_PHONE.replace(/\D/g, '');
+  return cleanPhone === cleanAdmin;
+};
+
 const SEED_MEMBERS = [
   {
     uid: 'seed-admin-001',
-    name: 'মোঃ আব্দুল করিম',
-    email: 'admin@khanbari.com',
-    phone: '01711111111',
+    name: 'অ্যাডমিন (সুপার অ্যাডমিন)',
+    email: 'admin@khanbari.somity',
+    phone: ADMIN_PHONE,
     bloodGroup: 'O+',
     role: 'admin',
     balance: 15000,
@@ -22,7 +32,7 @@ const SEED_MEMBERS = [
   {
     uid: 'seed-member-002',
     name: 'মোঃ রফিকুল ইসলাম',
-    email: 'rafiq@khanbari.com',
+    email: 'rafiq@khanbari.somity',
     phone: '01722222222',
     bloodGroup: 'A+',
     role: 'member',
@@ -31,7 +41,7 @@ const SEED_MEMBERS = [
   {
     uid: 'seed-member-003',
     name: 'মোঃ জাহাঙ্গীর আলম',
-    email: 'jahangir@khanbari.com',
+    email: 'jahangir@khanbari.somity',
     phone: '01733333333',
     bloodGroup: 'B+',
     role: 'member',
@@ -40,7 +50,7 @@ const SEED_MEMBERS = [
   {
     uid: 'seed-member-004',
     name: 'মোঃ সালাহউদ্দিন',
-    email: 'salah@khanbari.com',
+    email: 'salah@khanbari.somity',
     phone: '01744444444',
     bloodGroup: 'AB+',
     role: 'member',
@@ -49,7 +59,7 @@ const SEED_MEMBERS = [
   {
     uid: 'seed-member-005',
     name: 'মোঃ কামরুজ্জামান',
-    email: 'kamrul@khanbari.com',
+    email: 'kamrul@khanbari.somity',
     phone: '01755555555',
     bloodGroup: 'O-',
     role: 'member',
@@ -58,7 +68,7 @@ const SEED_MEMBERS = [
   {
     uid: 'seed-member-006',
     name: 'মোঃ হাসানুজ্জামান',
-    email: 'hasan@khanbari.com',
+    email: 'hasan@khanbari.somity',
     phone: '01766666666',
     bloodGroup: 'B-',
     role: 'member',
@@ -201,12 +211,11 @@ async function seed() {
 
     console.log('\n✅ সিড সম্পন্ন!');
     console.log('─────────────────────────────────────────');
-    console.log('অ্যাডমিন ইমেইল : admin@khanbari.com');
+    console.log(`অ্যাডমিন ফোন   : ${ADMIN_PHONE}`);
     console.log('সদস্য আইডি    : KBBRS-0001');
     console.log('─────────────────────────────────────────');
-    console.log('⚠️  Firebase Authentication-এ ম্যানুয়ালি ইউজার তৈরি করুন।');
-    console.log('    UID গুলো seed-admin-001, seed-member-002 ইত্যাদি হিসেবে।');
-    console.log('    অথবা অ্যাপ থেকে Signup করুন এবং MongoDB-তে role আপডেট করুন।\n');
+    console.log('⚠️  ফোন নম্বর দিয়ে Firebase Auth-এ লগইন করুন।');
+    console.log('    অথবা অ্যাপ থেকে সাইন আপ করুন।\n');
 
     process.exit(0);
   } catch (err) {

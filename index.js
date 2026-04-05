@@ -170,28 +170,45 @@ export default async function handler(req, res) {
   // Get origin from request
   const origin = req.headers.origin;
   
-  // Validate origin before setting CORS headers
-  const isAllowed = !origin || isOriginAllowed(origin);
+  // For Vercel: Allow specific origins or use wildcard for preflight
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://khanbari-somity.web.app',
+    'https://khanbari-somety.web.app',
+    'https://khanbari-somity.firebaseapp.com',
+    'https://khanbari-somety.firebaseapp.com',
+    'https://royal-somety-server-v4.vercel.app',
+    'https://khanbari-server-v4.vercel.app',
+  ];
+  
+  const isAllowed = !origin || allowedOrigins.includes(origin);
   
   // Handle CORS preflight - do this FIRST before anything else
   if (req.method === 'OPTIONS') {
-    if (!isAllowed) {
-      console.log(`❌ CORS preflight rejected origin: ${origin}`);
-      res.status(403).json({ message: 'CORS not allowed' });
-      return;
+    if (isAllowed && origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else {
+      // Fallback for preflight without specific origin
+      res.setHeader('Access-Control-Allow-Origin', '*');
     }
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.setHeader('Access-Control-Max-Age', '86400');
     res.status(204).end();
     return;
   }
   
-  // Add CORS headers to response for non-OPTIONS requests (only if origin is allowed)
-  if (origin && isAllowed) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  // Add CORS headers to response for non-OPTIONS requests
+  if (origin) {
+    if (isAllowed) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else {
+      // Debug: log rejected origin
+      console.log(`❌ CORS rejected: ${origin}`);
+    }
   }
   
   // Let Express handle the request

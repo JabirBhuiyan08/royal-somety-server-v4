@@ -12,6 +12,7 @@ import {
   dispatchDueReminder,
   dispatchCustomNotification,
 } from '../services/notificationDispatcher.js';
+import { clearUserCache } from '../middleware/authMiddleware.js';
 
 export const getStats = async (req, res) => {
   try {
@@ -112,13 +113,16 @@ export const updateMemberRole = async (req, res) => {
     const { role } = req.body;
     if (!['admin', 'member'].includes(role)) return res.status(400).json({ message: 'অবৈধ ভূমিকা' });
     const user = await User.findByIdAndUpdate(req.params.id, { role }, { new: true });
+    if (user && user.uid) clearUserCache(user.uid);
     res.json({ message: 'ভূমিকা আপডেট হয়েছে', user });
   } catch (err) { res.status(500).json({ message: 'আপডেট ব্যর্থ' }); }
 };
 
 export const deleteMember = async (req, res) => {
   try {
+    const user = await User.findById(req.params.id);
     await User.findByIdAndUpdate(req.params.id, { isActive: false });
+    if (user && user.uid) clearUserCache(user.uid);
     res.json({ message: 'সদস্য নিষ্ক্রিয় করা হয়েছে' });
   } catch (err) { res.status(500).json({ message: 'মুছতে ব্যর্থ' }); }
 };

@@ -5,6 +5,7 @@ import Target from '../models/Target.js';
 import Gallery from '../models/Gallery.js';
 import { cloudinary } from '../middleware/upload.js';
 import { dispatchGalleryUpload } from '../services/notificationDispatcher.js';
+import { clearUserCache } from '../middleware/authMiddleware.js';
 
 export const getTotalBalance = async (req, res) => {
   try {
@@ -120,8 +121,10 @@ export const updateProfile = async (req, res) => {
     if (req.file) update.avatar = req.file.path;
 
     const user = await User.findByIdAndUpdate(req.user._id, update, { new: true });
+    // Clear cache so next request gets fresh data
+    if (user && user.uid) clearUserCache(user.uid);
     res.json({ message: 'প্রোফাইল আপডেট হয়েছে', user });
-  } catch (err) { res.status(500).json({ message: 'আপডেট ব্যর্থ' }); }
+  } catch (err) { res.status(500).json({ message: 'আপডেট ব্যর্থ হয়েছে' }); }
 };
 
 // ── Get monthly payment status for current year ───────────────────────────────

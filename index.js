@@ -33,7 +33,6 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://localhost',
-  'http://127.0.0.1:5173',
   'http://127.0.0.1:3000',
   // Firebase hosting
   'https://khanbari-somity.web.app',
@@ -43,6 +42,9 @@ const allowedOrigins = [
   process.env.CLIENT_URL || 'https://khanbari-somety.web.app',
   // Any vercel.app domain (catch-all)
   'https://khanbari-somity.web.app',
+  // Vercel deployments
+  'https://royal-somety-server-v4.vercel.app',
+  'https://khanbari-server-v4.vercel.app',
 ];
 
 // CORS check function
@@ -167,9 +169,19 @@ if (!isVercel) {
 export default async function handler(req, res) {
   console.log(`📥 ${req.method} ${req.url} | Origin: ${req.headers.origin}`);
   
+  // Get origin from request
+  const origin = req.headers.origin;
+  
+  // Validate origin before setting CORS headers
+  const isAllowed = !origin || isOriginAllowed(origin);
+  
   // Handle CORS preflight - do this FIRST before anything else
   if (req.method === 'OPTIONS') {
-    const origin = req.headers.origin || '*';
+    if (!isAllowed) {
+      console.log(`❌ CORS preflight rejected origin: ${origin}`);
+      res.status(403).json({ message: 'CORS not allowed' });
+      return;
+    }
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
@@ -178,9 +190,8 @@ export default async function handler(req, res) {
     return;
   }
   
-  // Add CORS headers to response for non-OPTIONS requests
-  const origin = req.headers.origin;
-  if (origin) {
+  // Add CORS headers to response for non-OPTIONS requests (only if origin is allowed)
+  if (origin && isAllowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }

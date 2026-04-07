@@ -32,7 +32,7 @@ const allowedOrigins = [
   // All localhost variations
   'http://localhost:5173',
   'http://localhost:3000',
-  // Firebase hosting
+  // Firebase hosting - both spelling variants
   'https://khanbari-somity.web.app',
   'https://khanbari-somety.web.app',
   'https://khanbari-somity.firebaseapp.com',
@@ -43,11 +43,16 @@ const allowedOrigins = [
   // Vercel deployments
   'https://royal-somety-server-v4.vercel.app',
   'https://khanbari-server-v4.vercel.app',
+  // Additional Vercel client deployments
+  'https://royal-somety-client-v4-2.vercel.app',
 ];
 
 // CORS check function
 const isOriginAllowed = (origin) => {
-  if (!origin) return false;
+  // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+  if (!origin) return true;
+  // Allow any vercel.app domain
+  if (origin.endsWith('.vercel.app')) return true;
   return allowedOrigins.some(allowed => {
     // Handle wildcard ending
     if (allowed.endsWith('*')) {
@@ -180,9 +185,12 @@ export default async function handler(req, res) {
     'https://khanbari-somety.firebaseapp.com',
     'https://royal-somety-server-v4.vercel.app',
     'https://khanbari-server-v4.vercel.app',
+    // Additional client deployments
+    'https://royal-somety-client-v4-2.vercel.app',
   ];
   
-  const isAllowed = !origin || allowedOrigins.includes(origin);
+  // Allow all known client origins
+  const isAllowed = !origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app');
   
   // Handle CORS preflight - do this FIRST before anything else
   if (req.method === 'OPTIONS') {

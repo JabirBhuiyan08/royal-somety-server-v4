@@ -129,7 +129,7 @@ app.get('/api/debug/firebase', (req, res) => {
 });
 
 // ── Debug: Test token verification ──────────────────────────────────────
-app.get('/api/debug/test-token', async (req, res) => {
+app.post('/api/debug/test-token', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
@@ -137,9 +137,12 @@ app.get('/api/debug/test-token', async (req, res) => {
     }
     
     const token = authHeader.split(' ')[1];
+    console.log('[Debug] Testing token:', token.substring(0, 30) + '...');
     const decoded = await admin.auth().verifyIdToken(token, true);
+    console.log('[Debug] Token verified for uid:', decoded.uid);
     res.json({ success: true, uid: decoded.uid, email: decoded.email });
   } catch (err) {
+    console.log('[Debug] Token verification failed:', err.code, err.message);
     res.status(401).json({ error: err.code, message: err.message });
   }
 });

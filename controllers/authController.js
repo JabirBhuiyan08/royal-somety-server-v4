@@ -23,7 +23,7 @@ export const registerUser = async (req, res) => {
     const role = (count === 0 || isEnvAdmin) ? 'admin' : 'member';
 
     const user = await User.create({
-      uid, name, email: phone + '@khanbari.somity', phone, bloodGroup,
+      uid, name, email: phone ? phone + '@khanbari.somity' : undefined, phone, bloodGroup,
       avatar: photoURL || null,
       role,
     });
@@ -68,7 +68,7 @@ export const syncUser = async (req, res) => {
         uid, 
         name: name || 'সদস্য', 
         phone,
-        email: phone ? phone + '@khanbari.somity' : null,
+        email: phone ? phone + '@khanbari.somity' : undefined,
         avatar: photoURL || null,
         role: (count === 0 || isEnvAdmin) ? 'admin' : 'member',
       });

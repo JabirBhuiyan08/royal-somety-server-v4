@@ -44,6 +44,7 @@ export const verifyToken = async (req, res, next) => {
       console.log('[AuthMiddleware] Token verified, uid:', decoded.uid);
     } catch (verifyErr) {
       console.log('[AuthMiddleware] Token verification error:', verifyErr.code, verifyErr.message);
+      console.log('[AuthMiddleware] Full error:', JSON.stringify(verifyErr));
       // Handle specific Firebase auth errors
       if (verifyErr.code === 'auth/id-token-expired') {
         return res.status(401).json({ 
@@ -59,7 +60,12 @@ export const verifyToken = async (req, res, next) => {
           shouldRefresh: true
         });
       }
-      throw verifyErr;
+      // Return more specific error message
+      return res.status(401).json({ 
+        message: 'টোকেন যাচাই ব্যর্থ: ' + verifyErr.message,
+        code: verifyErr.code || 'INVALID_TOKEN',
+        shouldRefresh: false
+      });
     }
 
     req.uid = decoded.uid;
@@ -77,14 +83,22 @@ export const verifyToken = async (req, res, next) => {
           phone?.replace(/\D/g, '') === process.env.ADMIN_PHONE?.replace(/\D/g, '');
         const count = await User.countDocuments();
         
-        user = await User.create({
-          uid: decoded.uid,
-          name: name || decoded.name || 'সদস্য',
-          phone: phone || decoded.phone,
-          email: phone ? phone + '@khanbari.somity' : null,
-          avatar: picture || decoded.picture || null,
-          role: (count === 0 || isEnvAdmin) ? 'admin' : 'member',
-        });
+        try {
+          user = await User.create({
+            uid: decoded.uid,
+            name: name || decoded.name || 'সদস্য',
+            phone: phone || decoded.phone,
+            email: decoded.email || (phone ? phone + '@khanbari.somity' : undefined),
+            avatar: picture || decoded.picture || null,
+            role: (count === 0 || isEnvAdmin) ? 'admin' : 'member',
+          });
+        } catch (createErr) {
+          if (createErr.code === 11000) {
+            user = await User.findOne({ uid: decoded.uid });
+          } else {
+            throw createErr;
+          }
+        }
       }
       
       // Cache the user

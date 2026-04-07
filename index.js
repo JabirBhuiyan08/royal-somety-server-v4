@@ -128,6 +128,22 @@ app.get('/api/debug/firebase', (req, res) => {
   });
 });
 
+// ── Debug: Test token verification ──────────────────────────────────────
+app.get('/api/debug/test-token', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const decoded = await admin.auth().verifyIdToken(token, true);
+    res.json({ success: true, uid: decoded.uid, email: decoded.email });
+  } catch (err) {
+    res.status(401).json({ error: err.code, message: err.message });
+  }
+});
+
 // ── 404 ──────────────────────────────────────────────────────────────
 app.use('*', (req, res) => {
   console.log(`❌ 404: ${req.method} ${req.originalUrl}`);

@@ -22,7 +22,11 @@ const setCachedUser = (uid, user) => {
 export const verifyToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
+    console.log('[AuthMiddleware] Headers:', JSON.stringify(req.headers));
+    console.log('[AuthMiddleware] Auth header:', authHeader);
+    
     if (!authHeader?.startsWith('Bearer ')) {
+      console.log('[AuthMiddleware] No token found');
       return res.status(401).json({ 
         message: 'টোকেন পাওয়া যায়নি',
         code: 'NO_TOKEN',
@@ -31,12 +35,15 @@ export const verifyToken = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
+    console.log('[AuthMiddleware] Token (first 50 chars):', token.substring(0, 50));
     
     // Verify and decode token
     let decoded;
     try {
       decoded = await admin.auth().verifyIdToken(token, true); // true = check revocation
+      console.log('[AuthMiddleware] Token verified, uid:', decoded.uid);
     } catch (verifyErr) {
+      console.log('[AuthMiddleware] Token verification error:', verifyErr.code, verifyErr.message);
       // Handle specific Firebase auth errors
       if (verifyErr.code === 'auth/id-token-expired') {
         return res.status(401).json({ 

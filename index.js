@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 5000;
 
 // Connect DB
 connectDB().catch(err => {
-  console.error('❌ Database connection failed:', err.message);
+  console.error('❌ Database connection failed:...', err.message);
 });
 
 // ── Startup diagnostics ──────────────────────────────────────────────────────

@@ -115,6 +115,19 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// ── Debug: Check Firebase Admin status ─────────────────────────────────
+import { admin } from './config/firebase.js';
+
+app.get('/api/debug/firebase', (req, res) => {
+  res.json({
+    firebaseInitialized: !!admin?.apps?.length,
+    hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
+    hasClientEmail: !!process.env.FIREBASE_CLIENT_EMAIL,
+    hasPrivateKey: !!process.env.FIREBASE_PRIVATE_KEY,
+    projectId: process.env.FIREBASE_PROJECT_ID,
+  });
+});
+
 // ── 404 ──────────────────────────────────────────────────────────────
 app.use('*', (req, res) => {
   console.log(`❌ 404: ${req.method} ${req.originalUrl}`);

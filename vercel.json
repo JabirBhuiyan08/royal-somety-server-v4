@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "框架": "current",
   "builds": [
     {
       "src": "index.js",

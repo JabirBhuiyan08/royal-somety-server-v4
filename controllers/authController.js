@@ -7,11 +7,25 @@ export const registerUser = async (req, res) => {
   try {
     const { uid, name, email, phone, bloodGroup, photoURL } = req.body;
 
+    console.log('📥 Register request:', { uid, name, phone, bloodGroup, email });
+
+    // Validate and sanitize bloodGroup FIRST
+    const validBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+    const sanitizedBloodGroup = bloodGroup && validBloodGroups.includes(bloodGroup) ? bloodGroup : null;
+
+    console.log('📥 Sanitized bloodGroup:', sanitizedBloodGroup);
+
     const existing = await User.findOne({ uid });
     if (existing) {
-      // Clear cache for existing user in case of re-registration
+      // Update existing user with the new data (including bloodGroup from signup)
+      const updateFields = { name };
+      if (phone) updateFields.phone = phone;
+      if (sanitizedBloodGroup) updateFields.bloodGroup = sanitizedBloodGroup;
+      
+      const updated = await User.findByIdAndUpdate(existing._id, updateFields, { new: true });
       clearUserCache(uid);
-      return res.status(200).json({ message: 'সদস্য ইতিমধ্যে আছেন', user: existing });
+      console.log('📝 Updated existing user:', { phone, bloodGroup: sanitizedBloodGroup });
+      return res.status(200).json({ message: 'সদস্য আপডেট হয়েছে', user: updated });
     }
 
     // Check if this phone is the designated admin from .env
@@ -23,18 +37,36 @@ export const registerUser = async (req, res) => {
     const role = (count === 0 || isEnvAdmin) ? 'admin' : 'member';
 
     const user = await User.create({
-      uid, name, email: phone ? phone + '@khanbari.somity' : undefined, phone, bloodGroup,
+      uid, name, email: phone ? phone + '@khanbari.somity' : undefined, phone, 
+      bloodGroup: sanitizedBloodGroup,
       avatar: photoURL || null,
       role,
     });
 
+    console.log('✅ User registered:', { uid, name, phone, memberId: user.memberId, bloodGroup: user.bloodGroup });
     res.status(201).json({ message: 'নিবন্ধন সফল', user });
   } catch (err) {
     if (err.code === 11000) {
-      // Phone already exists — just return the existing user
-      const user = await User.findOne({ phone: req.body.phone });
-      clearUserCache(user?.uid);
-      return res.status(200).json({ user });
+      // Check if it's a phone or memberId duplicate
+      const userByPhone = await User.findOne({ phone: req.body.phone });
+      if (userByPhone) {
+        clearUserCache(userByPhone.uid);
+        return res.status(200).json({ user: userByPhone });
+      }
+      // memberId duplicate - find by uid (already created by concurrent request)
+      const userByUid = await User.findOne({ uid: req.body.uid });
+      if (userByUid) {
+        clearUserCache(userByUid.uid);
+        return res.status(200).json({ user: userByUid });
+      }
+      // Both not found - this is a race condition, query by latest created
+      const latestUser = await User.findOne().sort({ createdAt: -1 });
+      if (latestUser) {
+        clearUserCache(latestUser.uid);
+        return res.status(200).json({ user: latestUser });
+      }
+      // Last resort - return what we tried to create
+      return res.status(200).json({ user: null });
     }
     console.error('Register error:', err);
     res.status(500).json({ message: 'নিবন্ধন ব্যর্থ হয়েছে' });
@@ -53,26 +85,20 @@ export const getMe = async (req, res) => {
 // Phone-based login sync — upsert user in MongoDB
 export const syncUser = async (req, res) => {
   try {
-    const { uid, name, phone, photoURL } = req.body;
+    const { uid, name, phone, photoURL, bloodGroup } = req.body;
+
+    // Validate bloodGroup
+    const validBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+    const sanitizedBloodGroup = bloodGroup && validBloodGroups.includes(bloodGroup) ? bloodGroup : null;
 
     // Check if this phone is the designated admin from .env
     const isEnvAdmin = process.env.ADMIN_PHONE &&
       phone?.replace(/\D/g, '') === process.env.ADMIN_PHONE?.replace(/\D/g, '');
 
+    // First check if user exists by uid
     let user = await User.findOne({ uid });
     
-    if (!user) {
-      // New user - create one
-      const count = await User.countDocuments();
-      user = await User.create({
-        uid, 
-        name: name || 'সদস্য', 
-        phone,
-        email: phone ? phone + '@khanbari.somity' : undefined,
-        avatar: photoURL || null,
-        role: (count === 0 || isEnvAdmin) ? 'admin' : 'member',
-      });
-    } else {
+    if (user) {
       // Existing user - update if needed
       let updated = false;
       
@@ -90,15 +116,74 @@ export const syncUser = async (req, res) => {
         user.name = name;
         updated = true;
       }
+      // Update phone if provided
+      if (phone && !user.phone) {
+        user.phone = phone;
+        updated = true;
+      }
+      // Update bloodGroup if provided and user doesn't have one
+      if (sanitizedBloodGroup && !user.bloodGroup) {
+        user.bloodGroup = sanitizedBloodGroup;
+        updated = true;
+      }
       
       if (updated) {
         await user.save();
         // Clear cache after update
         clearUserCache(uid);
       }
+      return res.json({ user });
     }
 
-    res.json({ user });
+    // New user - check if phone already exists (for duplicate handling)
+    const existingByPhone = phone ? await User.findOne({ phone }) : null;
+    if (existingByPhone) {
+      // Link this Firebase uid to existing user
+      existingByPhone.uid = uid;
+      if (name && name !== existingByPhone.name) {
+        existingByPhone.name = name;
+      }
+      if (photoURL && !existingByPhone.avatar) {
+        existingByPhone.avatar = photoURL;
+      }
+      await existingByPhone.save();
+      clearUserCache(uid);
+      return res.json({ user: existingByPhone });
+    }
+
+    // Create new user
+    try {
+      const count = await User.countDocuments();
+      user = await User.create({
+        uid, 
+        name: name || 'সদস্য', 
+        phone,
+        email: phone ? phone + '@khanbari.somity' : undefined,
+        avatar: photoURL || null,
+        role: (count === 0 || isEnvAdmin) ? 'admin' : 'member',
+      });
+      res.json({ user });
+    } catch (createErr) {
+      if (createErr.code === 11000) {
+        // Race condition - user was created by another request
+        // Try to find by uid again
+        const newUser = await User.findOne({ uid });
+        if (newUser) {
+          return res.json({ user: newUser });
+        }
+        // Try by phone
+        if (phone) {
+          const phoneUser = await User.findOne({ phone });
+          if (phoneUser) {
+            return res.json({ user: phoneUser });
+          }
+        }
+        // Last resort - find any recent user
+        const recentUser = await User.findOne().sort({ createdAt: -1 });
+        return res.json({ user: recentUser });
+      }
+      throw createErr;
+    }
   } catch (err) {
     console.error('Sync error:', err);
     res.status(500).json({ message: 'সিঙ্ক ব্যর্থ হয়েছে' });

@@ -71,40 +71,19 @@ export const verifyToken = async (req, res, next) => {
     req.uid = decoded.uid;
     req.email = decoded.email;
 
-    // Try cache first
+// Try cache first
     let user = getCachedUser(decoded.uid);
     
     if (!user) {
       user = await User.findOne({ uid: decoded.uid });
       
-      if (!user) {
-        const { phone, name, picture } = decoded;
-        const isEnvAdmin = process.env.ADMIN_PHONE &&
-          phone?.replace(/\D/g, '') === process.env.ADMIN_PHONE?.replace(/\D/g, '');
-        const count = await User.countDocuments();
-        
-        try {
-          user = await User.create({
-            uid: decoded.uid,
-            name: name || decoded.name || 'সদস্য',
-            phone: phone || decoded.phone,
-            email: decoded.email || (phone ? phone + '@khanbari.somity' : undefined),
-            avatar: picture || decoded.picture || null,
-            role: (count === 0 || isEnvAdmin) ? 'admin' : 'member',
-          });
-        } catch (createErr) {
-          if (createErr.code === 11000) {
-            user = await User.findOne({ uid: decoded.uid });
-          } else {
-            throw createErr;
-          }
-        }
+      if (user) {
+        // Cache the user
+        setCachedUser(decoded.uid, user);
       }
-      
-      // Cache the user
-      setCachedUser(decoded.uid, user);
+      // Don't create user here - let register endpoint handle creation
     }
-
+    
     req.user = user;
     next();
   } catch (err) {

@@ -113,7 +113,10 @@ export const updateProfile = async (req, res) => {
     const update = {};
     if (name) update.name = name;
     if (phone) update.phone = phone;
-    if (bloodGroup) update.bloodGroup = bloodGroup;
+    // Allow setting or clearing bloodGroup
+    if (bloodGroup !== undefined) {
+      update.bloodGroup = bloodGroup || null;
+    }
 
     if (req.files?.avatar?.[0]) update.avatar = req.files.avatar[0].path;
     if (req.files?.cover?.[0])  update.coverPhoto = req.files.cover[0].path;

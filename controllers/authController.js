@@ -2,6 +2,35 @@
 import User from '../models/User.js';
 import { clearUserCache } from '../middleware/authMiddleware.js';
 
+// Get available BBRC numbers
+export const getAvailableBbrcNumbers = async (req, res) => {
+  try {
+    // Get all existing memberIds (format: KBBRS-XXXX, but we want BBRCXXXX for frontend)
+    const existingUsers = await User.find({}, 'memberId').lean();
+    const existingNumbers = existingUsers
+      .map(u => u.memberId)
+      .filter(Boolean)
+      .map(id => {
+        // memberId is like KBBRS-0001, extract the number part
+        const match = id.match(/KBBRS-(\d+)/);
+        return match ? match[1] : null;
+      })
+      .filter(Boolean);
+    
+    // Generate numbers 1-9999 and filter out existing ones
+    const allNumbers = Array.from({ length: 9999 }, (_, i) => 
+      String(i + 1).padStart(4, '0')
+    );
+    
+    const available = allNumbers.filter(num => !existingNumbers.includes(num));
+    
+    res.json({ numbers: available.slice(0, 500) }); // Return first 500 available
+  } catch (err) {
+    console.error('Get available BBRC numbers error:', err);
+    res.status(500).json({ message: 'BBRC নম্বর লোড করতে ব্যর্থ', error: err.message });
+  }
+};
+
 // Register new user after Firebase signup — saves full data to MongoDB
 export const registerUser = async (req, res) => {
   try {

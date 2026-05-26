@@ -60,7 +60,7 @@ export const getTargets = async (req, res) => {
 
 export const getEmergencyList = async (req, res) => {
   try {
-    const members = await User.find({ isActive: true }).select('name phone bloodGroup memberId avatar').sort({ name: 1 });
+    const members = await User.find({ isActive: true }).select('name phone bloodGroup memberId avatar socialMedia').sort({ name: 1 });
     res.json({ members });
   } catch (err) { res.status(500).json({ message: 'তালিকা আনতে ব্যর্থ' }); }
 };
@@ -106,7 +106,104 @@ export const deleteOwnPhoto = async (req, res) => {
   } catch (err) { res.status(500).json({ message: 'মুছতে ব্যর্থ' }); }
 };
 
-// ── Update own profile (name, phone, blood, avatar, coverPhoto) ───────────────
+const SOCIAL_MEDIA_FIELDS = ['facebook', 'instagram', 'x', 'whatsapp', 'imo'];
+
+const parseSocialMediaPayload = (payload) => {
+  if (!payload) return {};
+  if (typeof payload === 'object') return payload;
+
+  try {
+    const parsed = JSON.parse(payload);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+// ── Update own profile (name, phone, blood, avatar, coverPhoto, socialMedia) ───
+const buildSocialMediaUpdate = (body) => {
+  const payload = parseSocialMediaPayload(body.socialMedia);
+  const update = {};
+
+  for (const field of SOCIAL_MEDIA_FIELDS) {
+    const value = body[field] !== undefined ? body[field] : payload[field];
+    if (value !== undefined) {
+      update[`socialMedia.${field}`] = value || null;
+    }
+  }
+
+  return update;
+};
+
+const emptySocialMedia = () => SOCIAL_MEDIA_FIELDS.reduce((acc, field) => {
+  acc[`socialMedia.${field}`] = null;
+  return acc;
+}, {});
+
+export const createSocialMedia = async (req, res) => {
+  try {
+    const update = buildSocialMediaUpdate(req.body);
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: 'কমপক্ষে একটি সামাজিক যোগাযোগের তথ্য দিন' });
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id, update, { new: true });
+    if (user && user.uid) clearUserCache(user.uid);
+    res.status(201).json({ message: 'সামাজিক যোগাযোগের তথ্য যোগ হয়েছে', socialMedia: user.socialMedia, user });
+  } catch (err) {
+    res.status(500).json({ message: 'সামাজিক যোগাযোগের তথ্য যোগ করতে ব্যর্থ' });
+  }
+};
+
+export const getSocialMedia = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('socialMedia');
+    res.json({ socialMedia: user?.socialMedia || {} });
+  } catch (err) {
+    res.status(500).json({ message: 'সামাজিক যোগাযোগের তথ্য আনতে ব্যর্থ' });
+  }
+};
+
+export const updateSocialMedia = async (req, res) => {
+  try {
+    const update = buildSocialMediaUpdate(req.body);
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: 'আপডেট করার জন্য কোনো তথ্য পাওয়া যায়নি' });
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id, update, { new: true });
+    if (user && user.uid) clearUserCache(user.uid);
+    res.json({ message: 'সামাজিক যোগাযোগের তথ্য আপডেট হয়েছে', socialMedia: user.socialMedia, user });
+  } catch (err) {
+    res.status(500).json({ message: 'সামাজিক যোগাযোগের তথ্য আপডেট করতে ব্যর্থ' });
+  }
+};
+
+export const deleteSocialMedia = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(req.user._id, emptySocialMedia(), { new: true });
+    if (user && user.uid) clearUserCache(user.uid);
+    res.json({ message: 'সামাজিক যোগাযোগের তথ্য মুছে ফেলা হয়েছে', socialMedia: user.socialMedia, user });
+  } catch (err) {
+    res.status(500).json({ message: 'সামাজিক যোগাযোগের তথ্য মুছতে ব্যর্থ' });
+  }
+};
+
+export const deleteSocialMediaField = async (req, res) => {
+  try {
+    const { field } = req.params;
+    if (!SOCIAL_MEDIA_FIELDS.includes(field)) {
+      return res.status(400).json({ message: 'অবৈধ সামাজিক যোগাযোগের ক্ষেত্র' });
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id, { [`socialMedia.${field}`]: null }, { new: true });
+    if (user && user.uid) clearUserCache(user.uid);
+    res.json({ message: 'সামাজিক যোগাযোগের তথ্য মুছে ফেলা হয়েছে', socialMedia: user.socialMedia, user });
+  } catch (err) {
+    res.status(500).json({ message: 'সামাজিক যোগাযোগের তথ্য মুছতে ব্যর্থ' });
+  }
+};
+
 export const updateProfile = async (req, res) => {
   try {
     const { name, phone, bloodGroup } = req.body;
@@ -117,6 +214,8 @@ export const updateProfile = async (req, res) => {
     if (bloodGroup !== undefined) {
       update.bloodGroup = bloodGroup || null;
     }
+
+    Object.assign(update, buildSocialMediaUpdate(req.body));
 
     if (req.files?.avatar?.[0]) update.avatar = req.files.avatar[0].path;
     if (req.files?.cover?.[0])  update.coverPhoto = req.files.cover[0].path;

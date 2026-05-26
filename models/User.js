@@ -53,6 +53,13 @@ const userSchema = new mongoose.Schema({
   bloodGroup: { type: String, default: null }, // Allow null/empty - validated in forms
   avatar: { type: String, default: null },
   coverPhoto: { type: String, default: null },
+  socialMedia: {
+    facebook: { type: String, default: null },
+    instagram: { type: String, default: null },
+    x: { type: String, default: null },
+    whatsapp: { type: String, default: null },
+    imo: { type: String, default: null },
+  },
   role: { type: String, enum: ['admin', 'member'], default: 'member' },
   balance: { type: Number, default: 0 },
   monthlyDeposit: { type: Number, default: 0 },

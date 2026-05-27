@@ -47,14 +47,27 @@ export const getStats = async (req, res) => {
 
 export const getTransactions = async (req, res) => {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, page = 1, limit = 50 } = req.query;
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.max(1, Math.min(Number(limit), 100)); // cap at 100 per page
     const filter = status ? { status } : {};
-    const transactions = await Transaction.find(filter)
-      .populate('user', 'name memberId avatar phone email')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * Number(limit))
-      .limit(Number(limit));
-    res.json({ transactions });
+
+    const [transactions, total] = await Promise.all([
+      Transaction.find(filter)
+        .populate('user', 'name memberId avatar phone email')
+        .sort({ createdAt: -1 })
+        .skip((pageNum - 1) * limitNum)
+        .limit(limitNum),
+      Transaction.countDocuments(filter),
+    ]);
+
+    res.json({
+      transactions,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+    });
   } catch (err) { res.status(500).json({ message: 'লেনদেন আনতে ব্যর্থ' }); }
 };
 
